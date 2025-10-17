@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Captcha Solver</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b1220;
+      --card: #111a2b;
+      --accent: #4f8cff;
+      --muted: #9fb0d1;
+      --text: #e8eefc;
+      --good: #1fd07f;
+      --warn: #ffcc66;
+      --bad: #ff6b6b;
+      --border: #24324d;
+      --chip: #1a2742;
+    }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(120deg, #0b1220, #0b1428 35%, #0e1530);
+      color: var(--text);
+      min-height: 100%;
+    }
+    .wrapper {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .logo {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: radial-gradient(circle at 30% 30%, #7aa7ff, #4f8cff);
+      display: grid; place-items: center;
+      color: white; font-weight: 900;
+      box-shadow: 0 8px 20px #0008, inset 0 0 40px #ffffff0f;
+    }
+    h1 { font-size: 20px; margin: 0; letter-spacing: 0.3px; }
+    .card {
+      background: linear-gradient(180deg, #0e1729, #0d1526);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.25), inset 0 1px 0 #ffffff08;
+    }
+    .controls {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 12px;
+    }
+    input[type="url"] {
+      flex: 1 1 520px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1324;
+      color: var(--text);
+      outline: none;
+      box-shadow: inset 0 1px 0 #ffffff08;
+    }
+    button {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid #3f5fbf;
+      background: linear-gradient(180deg, #2e54c7, #2849b0);
+      color: white; font-weight: 600;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      box-shadow: 0 6px 16px #2543a880, inset 0 1px 0 #ffffff33;
+    }
+    button.secondary {
+      background: #13203a;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      box-shadow: none;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .panel {
+      background: #0b1324;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .panel h3 {
+      margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600;
+    }
+    .imgwrap {
+      background: #0a1020;
+      border: 1px dashed #24324d;
+      border-radius: 10px;
+      display: grid; place-items: center;
+      min-height: 160px;
+      padding: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .imgwrap img, .imgwrap canvas {
+      max-width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+    .badgelist { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 0; }
+    .badge {
+      font-size: 12px; padding: 4px 8px; border-radius: 8px;
+      background: var(--chip); border: 1px solid var(--border); color: var(--muted);
+    }
+    .status {
+      display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--muted);
+      font-size: 13px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--warn); box-shadow: 0 0 10px currentColor;
+    }
+    .dot.ok { background: var(--good); }
+    .dot.err { background: var(--bad); }
+    .result {
+      font-size: 22px; font-weight: 800; letter-spacing: 1.2px; margin-top: 6px;
+      color: var(--good);
+      text-shadow: 0 2px 18px rgba(31,208,127,0.18);
+      word-break: break-word;
+    }
+    .note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .footer {
+      margin-top: 14px; font-size: 12px; color: var(--muted);
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    }
+    .link { color: var(--accent); text-decoration: none; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0e1a33; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border); }
+    .sr { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <header>
+      <div class="logo">CS</div>
+      <div>
+        <h1>Captcha Solver (Client-side OCR)</h1>
+        <div class="note">Pass the captcha image URL via ?url=... The app shows the image and its OCR result.</div>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="controls">
+        <label class="sr" for="url">Captcha Image URL</label>
+        <input id="url" type="url" placeholder="https://example.com/sample.png" />
+        <button id="solveBtn" title="Run OCR on the provided URL">Solve</button>
+        <button id="demoBtn" class="secondary" title="Load a demo captcha">Use Demo</button>
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <h3>Original image (from URL)</h3>
+          <div class="imgwrap">
+            <img id="originalImg" alt="Captcha preview"/>
+          </div>
+          <div class="badgelist">
+            <div class="badge" id="badgeUrl">URL: -</div>
+            <div class="badge" id="badgeProxy">Proxy: auto</div>
+          </div>
+          <div class="status" id="loadStatus">
+            <span class="dot" id="imgDot"></span> <span id="imgStatusText">Waiting for URL...</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Preprocessed (OCR input)</h3>
+          <div class="imgwrap">
+            <canvas id="procCanvas" aria-label="Preprocessed captcha canvas"></canvas>
+          </div>
+          <div class="status">
+            <span class="dot" id="ocrDot"></span>
+            <span id="ocrStatus">Idle</span>
+          </div>
+          <div class="result" id="resultText">—</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>Tip: Add query parameter <span class="kbd">?url=...</span>. Example:</div>
+        <a class="link" id="exampleLink" href="#">Open with demo URL</a>
+        <span>•</span>
+        <span>If CORS blocks OCR, a safe image proxy is used automatically.</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    // Utility: parse query
+    function getQueryURL() {
+      try {
+        const u = new URL(location.href);
+        return u.searchParams.get('url') || '';
+      } catch { return ''; }
+    }
+
+    // Create a CORS-friendly proxy URL for an image
+    function weservProxy(origUrl) {
+      try {
+        const url = new URL(origUrl);
+        // images.weserv.nl requires host+path (no protocol)
+        const target = url.host + url.pathname + url.search;
+        return 'https://images.weserv.nl/?url=' + encodeURIComponent(target);
+      } catch {
+        return origUrl;
+      }
+    }
+
+    // Load image as <img>
+    function loadImg(src, crossOrigin = 'anonymous') {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = crossOrigin;
+        img.onload = () => resolve(img);
+        img.onerror = (e) => reject(new Error('Image load failed'));
+        img.src = src;
+      });
+    }
+
+    // Preprocess image to improve OCR: grayscale + scale + binarize (Otsu-like)
+    function preprocessToCanvas(img, opts = {}) {
+      const scale = opts.scale || Math.min(3, Math.max(1.5, 260 / Math.min(img.width, img.height)));
+      const w = Math.max(1, Math.floor(img.width * scale));
+      const h = Math.max(1, Math.floor(img.height * scale));
+      const cv = document.getElementById('procCanvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      // Draw scaled with nearest-neighbor to keep edges crisp
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, w, h);
+
+      let imgData = ctx.getImageData(0, 0, w, h);
+      let data = imgData.data;
+      // Grayscale and gather histogram
+      const hist = new Uint32Array(256);
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        const y = Math.round(0.299*r + 0.587*g + 0.114*b);
+        data[i] = data[i+1] = data[i+2] = y;
+        hist[y]++;
+      }
+
+      // Otsu threshold
+      let sum = 0, sumB = 0, wB = 0, wF = 0, varMax = 0, threshold = 127, total = w*h;
+      for (let t=0; t<256; t++) sum += t * hist[t];
+      for (let t=0; t<256; t++) {
+        wB += hist[t]; if (wB === 0) continue;
+        wF = total - wB; if (wF === 0) break;
+        sumB += t * hist[t];
+        const mB = sumB / wB;
+        const mF = (sum - sumB) / wF;
+        const varBetween = wB * wF * (mB - mF) * (mB - mF);
+        if (varBetween > varMax) { varMax = varBetween; threshold = t; }
+      }
+
+      // Apply threshold and slight dilation to bridge gaps
+      const dilate = opts.dilate ?? true;
+      for (let i = 0; i < data.length; i += 4) {
+        const y = data[i];
+        const v = (y > threshold ? 255 : 0);
+        data[i] = data[i+1] = data[i+2] = v;
+        data[i+3] = 255;
+      }
+      // Optional 3x3 dilation for thin fonts
+      if (dilate) {
+        const bin = new Uint8Array(w*h);
+        for (let y=0, p=0; y<h; y++) {
+          for (let x=0; x<w; x++, p++) {
+            bin[p] = (data[p*4] > 128) ? 1 : 0;
+          }
+        }
+        const out = new Uint8Array(w*h);
+        for (let y=1; y<h-1; y++) {
+          for (let x=1; x<w-1; x++) {
+            let on = 0;
+            for (let j=-1; j<=1; j++){
+              for (let i=-1; i<=1; i++){
+                if (bin[(y+j)*w + (x+i)]) { on = 1; break; }
+              }
+              if (on) break;
+            }
+            out[y*w + x] = on;
+          }
+        }
+        // write back
+        for (let y=0, p=0; y<h; y++) {
+          for (let x=0; x<w; x++, p++) {
+            const v = out[p] ? 255 : 0;
+            data[p*4] = data[p*4+1] = data[p*4+2] = v;
+          }
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      return cv;
+    }
+
+    // Update UI helpers
+    function setImgStatus(ok, text) {
+      const dot = document.getElementById('imgDot');
+      const label = document.getElementById('imgStatusText');
+      dot.classList.remove('ok', 'err');
+      if (ok === true) dot.classList.add('ok');
+      if (ok === false) dot.classList.add('err');
+      label.textContent = text;
+    }
+    function setOCRStatus(state, text) {
+      const dot = document.getElementById('ocrDot');
+      const label = document.getElementById('ocrStatus');
+      dot.classList.remove('ok', 'err');
+      if (state === 'ok') dot.classList.add('ok');
+      if (state === 'err') dot.classList.add('err');
+      label.textContent = text;
+    }
+
+    // Recognize text with Tesseract from a canvas
+    async function recognizeFromCanvas(canvas, signal) {
+      setOCRStatus('', 'Loading OCR engine...');
+      const start = performance.now();
+      const controller = new AbortController();
+      signal?.addEventListener('abort', () => controller.abort(), { once: true });
+
+      const config = {
+        // Limit characters to alphanumerics commonly used in captchas
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+        tessedit_pageseg_mode: '8', // treat as single word
+      };
+
+      // Use Tesseract.recognize direct shortcut
+      const result = await Tesseract.recognize(canvas, 'eng', {
+        logger: m => {
+          if (signal?.aborted) return;
+          if (m.status === 'loading tesseract core') setOCRStatus('', 'Loading Tesseract core...');
+          if (m.status === 'initializing tesseract') setOCRStatus('', 'Initializing engine...');
+          if (m.status === 'loading language traineddata') setOCRStatus('', 'Loading language data...');
+          if (m.status === 'recognizing text') setOCRStatus('', `Recognizing... ${Math.round((m.progress||0)*100)}%`);
+        },
+        // Pass config via "tessedit_*"
+        tessedit_char_whitelist: config.tessedit_char_whitelist,
+        tessedit_pageseg_mode: config.tessedit_pageseg_mode,
+      });
+
+      const took = Math.round(performance.now() - start);
+      setOCRStatus('ok', `Done in ${took} ms`);
+      return (result?.data?.text || '').trim();
+    }
+
+    async function solve(url) {
+      const originalImg = document.getElementById('originalImg');
+      const badgeUrl = document.getElementById('badgeUrl');
+      const badgeProxy = document.getElementById('badgeProxy');
+      const resultText = document.getElementById('resultText');
+      const exampleLink = document.getElementById('exampleLink');
+
+      // Update example link to carry this URL
+      exampleLink.href = location.origin + location.pathname + '?url=' + encodeURIComponent(url);
+
+      if (!url) {
+        setImgStatus(false, 'No URL provided.');
+        setOCRStatus('err', 'Provide a captcha image URL.');
+        resultText.textContent = '—';
+        originalImg.removeAttribute('src');
+        return;
+      }
+
+      // Show original image (no proxy)
+      try {
+        originalImg.src = url;
+        originalImg.alt = 'Original captcha image';
+        setImgStatus(null, 'Loading image...');
+        await new Promise((res, rej) => {
+          originalImg.onload = () => res();
+          originalImg.onerror = () => rej(new Error('Failed to load original image'));
+        });
+        setImgStatus(true, 'Image loaded.');
+      } catch (e) {
+        setImgStatus(false, 'Failed to load original image (still attempting OCR via proxy).');
+      }
+
+      badgeUrl.textContent = 'URL: ' + url;
+      badgeProxy.textContent = 'Proxy: auto';
+
+      // Prepare OCR input via proxy (to avoid CORS taint)
+      let proxied = weservProxy(url);
+      const abort = new AbortController();
+      const timeoutMs = 15000;
+      const timeoutId = setTimeout(() => {
+        abort.abort();
+        setOCRStatus('err', 'Timeout after 15s.');
+      }, timeoutMs);
+
+      try {
+        setOCRStatus('', 'Loading image for OCR...');
+        // First try proxied image to guarantee CORS-safe canvas
+        let ocrImg;
+        try {
+          ocrImg = await loadImg(proxied);
+          badgeProxy.textContent = 'Proxy: weserv';
+        } catch {
+          // Fallback: try direct URL (may fail to draw on canvas if tainted)
+          ocrImg = await loadImg(url);
+          badgeProxy.textContent = 'Proxy: none';
+        }
+
+        // Draw and preprocess
+        const canvas = preprocessToCanvas(ocrImg);
+        // Run OCR
+        const text = await recognizeFromCanvas(canvas, abort.signal);
+        clearTimeout(timeoutId);
+        if (!text) {
+          setOCRStatus('err', 'No text detected.');
+          resultText.textContent = '(empty)';
+        } else {
+          setOCRStatus('ok', 'Recognition complete.');
+          resultText.textContent = text.replace(/\s+/g, '');
+        }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        setOCRStatus('err', 'OCR failed: ' + (err?.message || 'Unknown error'));
+        resultText.textContent = '—';
+      }
+    }
+
+    // Wire up UI
+    (function init() {
+      const urlInput = document.getElementById('url');
+      const solveBtn = document.getElementById('solveBtn');
+      const demoBtn = document.getElementById('demoBtn');
+      const exampleLink = document.getElementById('exampleLink');
+
+      // A small demo image with clear alphanumerics (public domain sample)
+      const demoUrl = 'https://dummyimage.com/120x40/ffffff/000000.png&text=AB12C';
+
+      const qUrl = getQueryURL();
+      urlInput.value = qUrl || '';
+      exampleLink.href = location.origin + location.pathname + '?url=' + encodeURIComponent(demoUrl);
+
+      solveBtn.addEventListener('click', () => {
+        const u = urlInput.value.trim();
+        const next = new URL(location.href);
+        if (u) next.searchParams.set('url', u); else next.searchParams.delete('url');
+        history.replaceState({}, '', next.toString());
+        solve(u);
+      });
+
+      demoBtn.addEventListener('click', () => {
+        urlInput.value = demoUrl;
+        const next = new URL(location.href);
+        next.searchParams.set('url', demoUrl);
+        history.replaceState({}, '', next.toString());
+        solve(demoUrl);
+      });
+
+      if (qUrl) {
+        // Auto-solve on load
+        solve(qUrl);
+      }
+    })();
+  </script>
+</body>
+</html>
